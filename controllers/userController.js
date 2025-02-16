@@ -1,61 +1,149 @@
-const userModel = require('../models/user');
-const fs = require('fs');
+const UserModel = require("../models/userModel");
+const fs = require("fs")
 
 exports.createUser = async (req, res) => {
   try {
-    const { fullName, gender } = req.body;
+    const { fullName, email } = req.body;
     const files = req.files.map((e) => e.filename);
 
-    const user = new userModel({
+    const checkUser = await UserModel.findOne({ email: email })
+    if (checkUser) {
+      return res.status(400).json({
+        message: `user with email ${email} already exists, please use another email`
+      })
+    }
+    const user = new UserModel({
       fullName,
-      gender,
-      IMG: files
+      email,
+      familyPictures: files
     });
 
     await user.save();
+
     res.status(201).json({
-      message: 'User created successfully',
+      message: "user created",
       data: user
     })
   } catch (error) {
-    console.log(error.message);
     res.status(500).json({
-      message: 'Internal server error'
+      message: "internl server error" + error.message
     })
   }
-}
+};
 
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { fullName, gender } = req.body;
+    const { fullName } = req.body
     const files = req.files.map((e) => e.filename);
 
-    const user = await userModel.findById(id)
+
+    const user = await UserModel.findById(id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "user not found"
+      })
+    };
 
     const data = {
       fullName,
-      gender,
-      IMG: files
+      familyPictures: files
+    };
+
+    const oldFilepaths = user.familyPictures.map((e) => { return `./uploads/${e}` });
+
+    if (req.files && req.files[0]) {
+      oldFilepaths.forEach((path) => {
+        if (fs.existsSync(path)) {
+          fs.unlinkSync(path)
+          const files = req.files.map((element) => element.filename)
+          data.familyPictures = files
+        }
+      })
     }
 
-    const oldFilePath = `./images/${user.IMG.map((e)=> e.originalname)}`;
-
-    if (req.files) {
-        if (fs.existsSync(oldFilePath)) {
-          fs.unlinkSync(oldFilePath)
-        }
-      }
-
-    const updatedUser = await userModel.findByIdAndUpdate(id, data, { new: true });
+    const updatedUser = await UserModel.findByIdAndUpdate(id, data, { new: true })
     res.status(200).json({
-      message: 'User updated successfully',
+      message: "  User updated successfully",
       data: updatedUser
     })
+
   } catch (error) {
-    console.log(error.message);
     res.status(500).json({
-      message: 'Internal server error'
+      message: "internal server error" + error.message
     })
   }
-}
+};
+
+exports.getAll = async (req, res) => {
+  try {
+    const users = await UserModel.find();
+
+    res.status(200).json({
+      message: " Users found",
+      data: users
+    })
+
+  } catch (error) {
+    res.status(500).json({
+      message: "internal server error" + error.message
+    })
+  }
+};
+
+exports.getOneUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await UserModel.findById(id)
+    if (!user) {
+      return res.status(404).json({
+        message: "Uer not found"
+      })
+    }
+    res.status(200).json({
+      message: `user with id ${id} found`,
+      data: user
+    })
+
+  } catch (error) {
+    res.status(500).json({
+      message: "internal server error" + error.message
+    })
+  }
+};
+
+exports.deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await UserModel.findById(id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "user not found"
+      })
+    };
+
+    const oldFilepaths = user.familyPictures.map((e) => { return `./uploads/${e}` });
+
+    const deletedUser = await UserModel.findByIdAndDelete(id)
+
+    if (deletedUser) {
+      oldFilepaths.forEach((path) => {
+        if (fs.existsSync(path)) {
+          fs.unlinkSync(path)
+        }
+      })
+    }
+
+    res.status(200).json({
+      message: "  User deleted successfully",
+    })
+
+  } catch (error) {
+    res.status(500).json({
+      message: "internal server error" + error.message
+    })
+  }
+};
